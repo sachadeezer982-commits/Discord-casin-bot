@@ -8,6 +8,9 @@ import asyncio
 import string
 import string
 
+discord.opus._load_default()
+
+
 # -------------------------------
 # CONFIGURATION
 # -------------------------------
