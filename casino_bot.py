@@ -92,8 +92,6 @@ def set_balance(user_id, amount):
 # COMMANDES JOUEURS
 # -------------------------------
 
-@bot.event
-async def on_ready():
     print(f"{bot.user} est en ligne !")
     try:
         synced = await bot.tree.sync()
@@ -1064,4 +1062,31 @@ keep_alive()
 # LANCEMENT DU BOT
 # -------------------------------
 TOKEN = os.getenv('DISCORD_TOKEN') # ⚠️ CHANGE LE TOKEN !
+
+# =====================================================
+# =============  ANTI-SLEEP TASK (Render Free)  ========
+# =====================================================
+from discord.ext import tasks
+
+@tasks.loop(seconds=60)
+async def keep_bot_alive_task():
+    try:
+        pass  # keeps process active
+    except:
+        pass
+
+# Patch on_ready to include starting anti-sleep
+old_on_ready = bot.on_ready
+@bot.event
+async def on_ready():
+    print(f"{bot.user} est en ligne !")
+    if not keep_bot_alive_task.is_running():
+        keep_bot_alive_task.start()
+    try:
+        synced = await bot.tree.sync()
+        print(f"Commands sync: {len(synced)}")
+    except Exception as e:
+        print("Erreur sync :", e)
+
+
 bot.run(TOKEN)
