@@ -1045,44 +1045,7 @@ async def admin_generate(interaction: discord.Interaction, amount: int, quantity
     quantity="Nombre de codes à générer",
     length="Longueur des codes (par défaut: 8)"
 )
-@admin_only()
-async def admin_generate(interaction: discord.Interaction, amount: int, quantity: int, length: int = 8):
-    if quantity > 50:
-        return await interaction.response.send_message("❌ Maximum 50 codes à la fois.")
-    
-    if length < 4 or length > 20:
-        return await interaction.response.send_message("❌ La longueur doit être entre 4 et 20 caractères.")
-    
-    if amount < 1:
-        return await interaction.response.send_message("❌ Le montant doit être positif.")
-    
-    # Générer les codes
-    generated_codes = []
-    
-    for i in range(quantity):
-        # Générer un code aléatoire unique
-        while True:
-            code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=length))
-            if code not in codes:  # Vérifier qu'il n'existe pas déjà
-                break
-        
-        # Créer le code
-        codes[code] = {
-            "amount": amount,
-            "infinite": False,  # Toujours usage unique
-            "active": True,
-            "used_by": []
-        }
-        generated_codes.append(code)
-    
-    save_codes()
-    
-    # Créer le message de réponse
-    embed = discord.Embed(
-        title="🎟️ **CODES GÉNÉRÉS**",
-        description=f"**{quantity} codes** de **{amount} coins** créés avec succès !",
-        color=discord.Color.green()
-    )
+
     
     # Diviser les codes en plusieurs champs si nécessaire (limite Discord)
     codes_per_field = 10
