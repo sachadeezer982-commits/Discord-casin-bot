@@ -1075,18 +1075,21 @@ async def keep_bot_alive_task():
     except:
         pass
 
-# Patch on_ready to include starting anti-sleep
-old_on_ready = bot.on_ready
 @bot.event
 async def on_ready():
     print(f"{bot.user} est en ligne !")
+
+    # 🔥 Démarre la task anti-sleep
     if not keep_bot_alive_task.is_running():
         keep_bot_alive_task.start()
+
+    # 🔄 Sync des commandes
     try:
         synced = await bot.tree.sync()
         print(f"Commands sync: {len(synced)}")
     except Exception as e:
-        print("Erreur sync :", e)
+        print("Erreur de sync :", e)
+
 
 
 bot.run(TOKEN)
