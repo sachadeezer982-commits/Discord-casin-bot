@@ -15,7 +15,7 @@ discord.opus._load_default()
 # CONFIGURATION
 # -------------------------------
 
-ADMIN_ID = os.getenv("ADMIN_TOKEN")  # <- mets ton ID Discord ici
+ADMIN_ID = os.getenv('ADMIN_TOKEN')  # <- mets ton ID Discord ici
 DATA_FILE = "players.json"
 CODES_FILE = "codes.json"
 
@@ -1034,5 +1034,5 @@ async def admin_generate(interaction: discord.Interaction, amount: int, quantity
 # -------------------------------
 # LANCEMENT DU BOT
 # -------------------------------
-TOKEN = os.getenv("DISCORD_TOKEN") # ⚠️ CHANGE LE TOKEN !
+TOKEN = os.getenv('DISCORD_TOKEN') # ⚠️ CHANGE LE TOKEN !
 bot.run(TOKEN)
