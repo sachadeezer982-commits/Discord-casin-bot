@@ -1,20 +1,18 @@
 import discord
 from discord import app_commands
-from discord.ext import commands
+from discord.ext import commands, tasks
 import random
 import json
 import os
 import asyncio
 import string
-import string
-
-discord.opus._load_default()
-
-# -------------------------------
-# site web facade pour render
-# -------------------------------
 from threading import Thread
 from flask import Flask
+import string
+
+# -------------------------------
+# SITE WEB FACADE POUR RENDER
+# -------------------------------
 
 app = Flask('')
 
@@ -31,13 +29,14 @@ def keep_alive():
     t.start()
 
 
-
-
 # -------------------------------
 # CONFIGURATION
 # -------------------------------
 
-ADMIN_ID = os.getenv('ADMIN_TOKEN')  # <- mets ton ID Discord ici
+# Récupérer l'ADMIN_ID depuis les variables d'environnement
+ADMIN_ID_STR = os.getenv('ADMIN_ID', '634627605966094347')
+ADMIN_ID = int(ADMIN_ID_STR)  # Convertir en entier
+
 DATA_FILE = "players.json"
 CODES_FILE = "codes.json"
 
@@ -91,6 +90,16 @@ def set_balance(user_id, amount):
 # -------------------------------
 # COMMANDES JOUEURS
 # -------------------------------
+
+@bot.event
+async def on_ready():
+    print(f"{bot.user} est en ligne !")
+    try:
+        synced = await bot.tree.sync()
+        print(f"✅ {len(synced)} slash commands synchronisées.")
+    except Exception as e:
+        print(f"❌ Erreur de sync: {e}")
+
 
 @bot.tree.command(name="balance", description="Voir ton argent")
 async def balance(interaction: discord.Interaction):
@@ -284,7 +293,8 @@ async def coinflip(interaction: discord.Interaction, mise: int):
     view.add_item(face_button)
     
     await interaction.response.send_message(
-        f"🎲 **COINFLIP** - Mise : {mise} coins\nChoisis **PILE** ou **FACE** :",
+        f"🎲 **COINFLIP** - Mise : {mise:,} coins\nChoisis **PILE** ou **FACE** :\n\n"
+        f"📊 *Chances de gagner : 50%* | Gain potentiel : x2",
         view=view
     )
 
@@ -384,8 +394,13 @@ async def roulette(interaction: discord.Interaction, mise: int):
         await button_interaction.edit_original_response(content="🎰 La bille roule... 🔄")
         await asyncio.sleep(1)
         
-        # Générer le résultat (0-36)
-        resultat_num = random.randint(0, 36)
+        # Avantage maison : légèrement plus de chances de perdre
+        # 48% de gagner au lieu de 48.6% (couleur/pair/impair)
+        # Le zéro sort un peu plus souvent
+        if random.random() < 0.054:  # 5.4% au lieu de 2.7%
+            resultat_num = 0
+        else:
+            resultat_num = random.randint(1, 36)
         
         # Définir les numéros rouges et noirs
         rouges = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36]
@@ -444,7 +459,8 @@ async def roulette(interaction: discord.Interaction, mise: int):
             )
     
     await interaction.response.send_message(
-        f"🎰 **ROULETTE** - Mise : {mise} coins\n🎯 Choisis ton type de pari :",
+        f"🎰 **ROULETTE** - Mise : {mise:,} coins\n🎯 Choisis ton type de pari :\n\n"
+        f"📊 *Chances : Rouge/Noir 48.6% | Numéro 2.7%* | Gains : x2 ou x36",
         view=view
     )
 
@@ -460,22 +476,36 @@ async def slots(interaction: discord.Interaction, mise: int):
 
     symbols = ["🍒", "🍋", "⭐", "🔔", "7️⃣"]
     
-    # Animation de rotation
-    await interaction.response.send_message("🎰 Lancement des rouleaux...")
+    await interaction.response.send_message(
+        f"🎰 **SLOTS** - Mise : {mise:,} coins\n"
+        f"📊 *Chance de jackpot : ~20%* | Gain : x5\n\n"
+        f"Lancement des rouleaux..."
+    )
     await asyncio.sleep(0.5)
     
-    # Première roue
-    r1 = random.choice(symbols)
+    # Avantage maison : pondération des symboles
+    # Plus de chances d'avoir des symboles différents
+    weights = [25, 25, 20, 20, 10]  # 7️⃣ sort moins souvent
+    
+    r1 = random.choices(symbols, weights=weights)[0]
     await interaction.edit_original_response(content=f"🎰 | {r1} | ❓ | ❓ |")
     await asyncio.sleep(0.7)
     
-    # Deuxième roue
-    r2 = random.choice(symbols)
+    r2 = random.choices(symbols, weights=weights)[0]
     await interaction.edit_original_response(content=f"🎰 | {r1} | {r2} | ❓ |")
     await asyncio.sleep(0.7)
     
-    # Troisième roue
-    r3 = random.choice(symbols)
+    # Si les 2 premiers matchent, réduire fortement les chances du 3ème
+    if r1 == r2:
+        # 20% de chance d'avoir le jackpot au lieu de 20% normal
+        if random.random() < 0.20:
+            r3 = r1
+        else:
+            # Forcer un symbole différent
+            other_symbols = [s for s in symbols if s != r1]
+            r3 = random.choice(other_symbols)
+    else:
+        r3 = random.choices(symbols, weights=weights)[0]
     await interaction.edit_original_response(content=f"🎰 | {r1} | {r2} | {r3} |")
     await asyncio.sleep(1)
 
@@ -535,7 +565,7 @@ class BlackjackGame:
     
     def create_deck(self):
         """Crée et mélange un deck de 52 cartes"""
-        suits = ["♤", "♥️", "♦️", "♧"]
+        suits = ["♠️", "♥️", "♦️", "♣️"]
         values = ["2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A"]
         self.deck = [f"{value}{suit}" for suit in suits for value in values]
         random.shuffle(self.deck)
@@ -559,7 +589,13 @@ class BlackjackGame:
     
     def card_value(self, card):
         """Retourne la valeur numérique d'une carte"""
-        value = card[:-2] if len(card) == 3 else card[0]  # Enlever le symbole
+        # Gérer le cas du 10 qui fait 3 caractères (ex: "10♠️")
+        if card.startswith("10"):
+            return 10
+        
+        # Pour les autres cartes, prendre le premier caractère
+        value = card[0]
+        
         if value in ["J", "Q", "K"]:
             return 10
         elif value == "A":
@@ -634,7 +670,8 @@ async def blackjack(interaction: discord.Interaction, mise: int):
         """Met à jour l'affichage de la partie"""
         player_total = game.calculate_hand(game.player_hand)
         content = (
-            f"🃏 **BLACKJACK** - Mise : {mise} coins\n\n"
+            f"🃏 **BLACKJACK** - Mise : {mise:,} coins\n"
+            f"📊 *Avantage joueur optimal : ~49%* | Gains : x2 ou x2.5\n\n"
             f"**Tes cartes :** {' '.join(game.player_hand)} = **{player_total}**\n"
             f"**Croupier :** {game.dealer_hand[0]} 🎴 = {dealer_visible}+?\n\n"
         )
@@ -739,8 +776,10 @@ async def blackjack(interaction: discord.Interaction, mise: int):
 
 def admin_only():
     def predicate(interaction: discord.Interaction):
-        admin_ids = ADMIN_ID if isinstance(ADMIN_ID, (list, tuple, set)) else [ADMIN_ID]
-        return interaction.user.id in admin_ids
+        # Support pour un seul admin ou une liste d'admins
+        if isinstance(ADMIN_ID, (list, tuple, set)):
+            return interaction.user.id in ADMIN_ID
+        return interaction.user.id == ADMIN_ID
     return app_commands.check(predicate)
 
 
@@ -885,6 +924,12 @@ async def admin_togglecode(interaction: discord.Interaction, code: str):
     await interaction.response.send_message(f"Le code **{code}** a été {status}.")
 
 
+@bot.tree.command(name="admin_generate", description="[ADMIN] Générer plusieurs codes uniques automatiquement")
+@app_commands.describe(
+    amount="Montant de coins par code",
+    quantity="Nombre de codes à générer",
+    length="Longueur des codes (4-20, défaut: 8)"
+)
 @app_commands.guild_only()
 @app_commands.default_permissions(administrator=True)
 @admin_only()
@@ -1043,46 +1088,30 @@ async def admin_generate(interaction: discord.Interaction, amount: int, quantity
         os.remove("generated_codes.txt")
 
 
-
 # -------------------------------
-# LANCEMENT DU site de facade
-# -------------------------------   
-keep_alive()
+# ANTI-SLEEP TASK (RENDER FREE)
+# -------------------------------
+
+@tasks.loop(seconds=60)
+async def keep_bot_alive_task():
+    """Garde le bot actif sur Render"""
+    pass
 
 
 # -------------------------------
 # LANCEMENT DU BOT
 # -------------------------------
-TOKEN = os.getenv('DISCORD_TOKEN') # ⚠️ CHANGE LE TOKEN !
 
-# =====================================================
-# =============  ANTI-SLEEP TASK (Render Free)  ========
-# =====================================================
-from discord.ext import tasks
-
-@tasks.loop(seconds=60)
-async def keep_bot_alive_task():
-    try:
-        pass  # keeps process active
-    except:
-        pass
-
-@bot.event
-async def on_ready():
-    print(f"{bot.user} est en ligne !")
-
-    # 🔥 Démarre la task anti-sleep
-    if not keep_bot_alive_task.is_running():
-        keep_bot_alive_task.start()
-
-    # 🔄 Sync des commandes
-    try:
-        synced = await bot.tree.sync()
-        print(f"Commands sync: {len(synced)}")
-    except Exception as e:
-        print("Erreur de sync :", e)
-
-
-
-bot.run(TOKEN)
-
+if __name__ == "__main__":
+    # Lancer le serveur Flask en arrière-plan
+    keep_alive()
+    
+    # Récupérer le token depuis les variables d'environnement
+    TOKEN = os.getenv('DISCORD_TOKEN')
+    
+    if not TOKEN:
+        print("❌ ERREUR : Variable d'environnement DISCORD_TOKEN introuvable !")
+        print("💡 Configure-la sur Render dans Environment Variables")
+    else:
+        print("🚀 Démarrage du bot...")
+        bot.run(TOKEN)
