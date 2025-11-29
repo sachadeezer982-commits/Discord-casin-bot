@@ -92,14 +92,6 @@ def set_balance(user_id, amount):
 # COMMANDES JOUEURS
 # -------------------------------
 
-    print(f"{bot.user} est en ligne !")
-    try:
-        synced = await bot.tree.sync()
-        print(f"✅ {len(synced)} slash commands synchronisées.")
-    except Exception as e:
-        print(f"❌ Erreur de sync: {e}")
-
-
 @bot.tree.command(name="balance", description="Voir ton argent")
 async def balance(interaction: discord.Interaction):
     money = get_balance(interaction.user.id)
@@ -1093,3 +1085,4 @@ async def on_ready():
 
 
 bot.run(TOKEN)
+
