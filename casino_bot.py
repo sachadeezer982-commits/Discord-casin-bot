@@ -1039,44 +1039,6 @@ async def admin_generate(interaction: discord.Interaction, amount: int, quantity
         os.remove("generated_codes.txt")
 
 
-@bot.tree.command(name="admin_generate", description="[ADMIN] Générer plusieurs codes uniques automatiquement")
-@app_commands.describe(
-    amount="Montant de coins par code",
-    quantity="Nombre de codes à générer",
-    length="Longueur des codes (par défaut: 8)"
-)
-
-    
-    # Diviser les codes en plusieurs champs si nécessaire (limite Discord)
-    codes_per_field = 10
-    for i in range(0, len(generated_codes), codes_per_field):
-        batch = generated_codes[i:i+codes_per_field]
-        field_name = f"📋 Codes {i+1}-{min(i+codes_per_field, len(generated_codes))}"
-        field_value = "\n".join([f"`{code}`" for code in batch])
-        embed.add_field(name=field_name, value=field_value, inline=False)
-    
-    embed.set_footer(text="⚠️ Chaque code est à usage unique (1 joueur)")
-    
-    await interaction.response.send_message(embed=embed)
-    
-    # Envoyer aussi un fichier texte si beaucoup de codes
-    if quantity > 20:
-        codes_text = "\n".join(generated_codes)
-        with open("generated_codes.txt", "w") as f:
-            f.write(f"Codes générés - {amount} coins chacun\n")
-            f.write("="*40 + "\n\n")
-            f.write(codes_text)
-        
-        with open("generated_codes.txt", "rb") as f:
-            file = discord.File(f, filename=f"codes_{amount}coins_{quantity}x.txt")
-            await interaction.followup.send(
-                "📄 **Fichier texte avec tous les codes :**",
-                file=file
-            )
-        
-        # Supprimer le fichier temporaire
-        os.remove("generated_codes.txt")
-
 
 # -------------------------------
 # ANTI-SLEEP TASK (RENDER FREE)
