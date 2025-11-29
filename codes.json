@@ -1,0 +1,105 @@
+{
+    "BIENVENUE": {
+        "amount": 100,
+        "infinite": true,
+        "active": true,
+        "used_by": [
+            "634627605966094347"
+        ]
+    },
+    "AERFF2": {
+        "amount": 10000,
+        "infinite": false,
+        "active": true,
+        "used_by": []
+    },
+    "AFF2": {
+        "amount": 10000,
+        "infinite": false,
+        "active": true,
+        "used_by": []
+    },
+    "G25GE": {
+        "amount": 10000,
+        "infinite": false,
+        "active": true,
+        "used_by": []
+    },
+    "GEAAADA": {
+        "amount": 10000,
+        "infinite": false,
+        "active": true,
+        "used_by": []
+    },
+    "FLUS20": {
+        "amount": 10000,
+        "infinite": false,
+        "active": true,
+        "used_by": []
+    },
+    "FFJAA": {
+        "amount": 10000,
+        "infinite": false,
+        "active": true,
+        "used_by": []
+    },
+    "PLAHJQ": {
+        "amount": 10000,
+        "infinite": false,
+        "active": true,
+        "used_by": []
+    },
+    "2642HH": {
+        "amount": 10000,
+        "infinite": false,
+        "active": true,
+        "used_by": []
+    },
+    "MLDIS": {
+        "amount": 10000,
+        "infinite": false,
+        "active": true,
+        "used_by": []
+    },
+    "MQPAN": {
+        "amount": 10000,
+        "infinite": false,
+        "active": true,
+        "used_by": []
+    },
+    "AAAA": {
+        "amount": 10000,
+        "infinite": false,
+        "active": true,
+        "used_by": [
+            "914166036654325870",
+            "634627605966094347"
+        ]
+    },
+    "AAA": {
+        "amount": 10000,
+        "infinite": false,
+        "active": true,
+        "used_by": [
+            "440772137897295881",
+            "634627605966094347",
+            "914166036654325870"
+        ]
+    },
+    "1111": {
+        "amount": 1000,
+        "infinite": false,
+        "active": true,
+        "used_by": [
+            "914166036654325870"
+        ]
+    },
+    "S54XNONH": {
+        "amount": 10000,
+        "infinite": false,
+        "active": true,
+        "used_by": [
+            "914166036654325870"
+        ]
+    }
+}
