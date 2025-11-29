@@ -8,6 +8,8 @@ import asyncio
 import string
 from threading import Thread
 from flask import Flask
+from pymongo import MongoClient
+from datetime import datetime
 import string
 
 # -------------------------------
@@ -37,8 +39,19 @@ def keep_alive():
 ADMIN_ID_STR = os.getenv('ADMIN_ID', '634627605966094347')
 ADMIN_ID = int(ADMIN_ID_STR)  # Convertir en entier
 
-DATA_FILE = "players.json"
-CODES_FILE = "codes.json"
+# MongoDB Atlas Connection
+MONGODB_URI = os.getenv('MONGODB_URI')
+if not MONGODB_URI:
+    print("❌ ERREUR : Variable MONGODB_URI manquante !")
+    exit(1)
+
+# Connexion à MongoDB
+mongo_client = MongoClient(MONGODB_URI)
+db = mongo_client['casino_bot']  # Nom de la base de données
+players_collection = db['players']  # Collection pour les joueurs
+codes_collection = db['codes']  # Collection pour les codes
+
+print("✅ Connecté à MongoDB Atlas")
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -47,44 +60,67 @@ bot = commands.Bot(command_prefix="/", intents=intents)
 
 
 # -------------------------------
-# GESTION DES DONNÉES
+# GESTION DES DONNÉES (MONGODB)
 # -------------------------------
 
-def load_data():
-    if not os.path.exists(DATA_FILE):
-        return {}
-    with open(DATA_FILE, "r") as f:
-        try:
-            return json.load(f)
-        except json.JSONDecodeError:
-            return {}
-
-def save_data():
-    with open(DATA_FILE, "w") as f:
-        json.dump(players, f, indent=4)
-
-def load_codes():
-    if not os.path.exists(CODES_FILE):
-        return {}
-    with open(CODES_FILE, "r") as f:
-        try:
-            return json.load(f)
-        except json.JSONDecodeError:
-            return {}
-
-def save_codes():
-    with open(CODES_FILE, "w") as f:
-        json.dump(codes, f, indent=4)
-
-players = load_data()
-codes = load_codes()
-
 def get_balance(user_id):
-    return players.get(str(user_id), 0)
+    """Récupère le solde d'un joueur depuis MongoDB"""
+    user_data = players_collection.find_one({"user_id": str(user_id)})
+    if user_data:
+        return user_data.get("balance", 0)
+    return 0
 
 def set_balance(user_id, amount):
-    players[str(user_id)] = amount
-    save_data()
+    """Met à jour le solde d'un joueur dans MongoDB"""
+    players_collection.update_one(
+        {"user_id": str(user_id)},
+        {"$set": {
+            "balance": max(0, amount),
+            "last_updated": datetime.utcnow()
+        }},
+        upsert=True  # Crée le document s'il n'existe pas
+    )
+
+def get_all_players():
+    """Récupère tous les joueurs"""
+    return {doc["user_id"]: doc["balance"] for doc in players_collection.find()}
+
+def get_code(code_name):
+    """Récupère un code promo depuis MongoDB"""
+    return codes_collection.find_one({"code": code_name.upper()})
+
+def create_code(code_name, amount, infinite=False):
+    """Crée un nouveau code promo"""
+    codes_collection.insert_one({
+        "code": code_name.upper(),
+        "amount": amount,
+        "infinite": infinite,
+        "active": True,
+        "used_by": [],
+        "created_at": datetime.utcnow()
+    })
+
+def update_code(code_name, updates):
+    """Met à jour un code promo"""
+    codes_collection.update_one(
+        {"code": code_name.upper()},
+        {"$set": updates}
+    )
+
+def delete_code(code_name):
+    """Supprime un code promo"""
+    codes_collection.delete_one({"code": code_name.upper()})
+
+def get_all_codes():
+    """Récupère tous les codes"""
+    return list(codes_collection.find())
+
+def add_code_user(code_name, user_id):
+    """Ajoute un utilisateur à la liste des utilisateurs d'un code"""
+    codes_collection.update_one(
+        {"code": code_name.upper()},
+        {"$push": {"used_by": str(user_id)}}
+    )
 
 
 # -------------------------------
@@ -160,11 +196,13 @@ async def help_command(interaction: discord.Interaction):
 
 @bot.tree.command(name="top", description="Classement des 10 joueurs les plus riches")
 async def top(interaction: discord.Interaction):
-    if not players:
+    all_players = get_all_players()
+    
+    if not all_players:
         return await interaction.response.send_message("📭 Aucun joueur n'a encore d'argent.")
     
     # Trier les joueurs par argent (du plus riche au plus pauvre)
-    sorted_players = sorted(players.items(), key=lambda x: x[1], reverse=True)[:10]
+    sorted_players = sorted(all_players.items(), key=lambda x: x[1], reverse=True)[:10]
     
     embed = discord.Embed(
         title="🏆 **TOP 10 JOUEURS LES PLUS RICHES**",
@@ -195,10 +233,10 @@ async def top(interaction: discord.Interaction):
 async def redeem(interaction: discord.Interaction, code: str):
     code = code.upper()
     
-    if code not in codes:
-        return await interaction.response.send_message("❌ Ce code n'existe pas.")
+    code_data = get_code(code)
     
-    code_data = codes[code]
+    if not code_data:
+        return await interaction.response.send_message("❌ Ce code n'existe pas.")
     
     # Vérifier si le code est encore actif
     if not code_data["active"]:
@@ -221,8 +259,7 @@ async def redeem(interaction: discord.Interaction, code: str):
     set_balance(interaction.user.id, money + amount)
     
     # Marquer comme utilisé par cet utilisateur
-    codes[code]["used_by"].append(user_id)
-    save_codes()
+    add_code_user(code, user_id)
     
     usage_info = "♾️ (réutilisable par d'autres)" if code_data["infinite"] else "🔒 (usage unique total)"
     await interaction.response.send_message(
@@ -788,16 +825,18 @@ def admin_only():
 @app_commands.default_permissions(administrator=True)
 @admin_only()
 async def admin_list(interaction: discord.Interaction):
-    if not players:
+    all_players = get_all_players()
+    
+    if not all_players:
         return await interaction.response.send_message("Aucun joueur enregistré.")
     
     msg = "📜 **Liste des joueurs :**\n\n"
-    for uid, money in players.items():
+    for uid, money in all_players.items():
         try:
             user = await bot.fetch_user(int(uid))
-            msg += f"**{user.name}** ({uid}) → {money} coins\n"
+            msg += f"**{user.name}** ({uid}) → {money:,} coins\n"
         except:
-            msg += f"User {uid} → {money} coins\n"
+            msg += f"User {uid} → {money:,} coins\n"
     await interaction.response.send_message(msg)
 
 
@@ -845,21 +884,15 @@ async def admin_reset(interaction: discord.Interaction, member: discord.Member):
 async def admin_createcode(interaction: discord.Interaction, code: str, amount: int, infinite: bool):
     code = code.upper()
     
-    if code in codes:
+    if get_code(code):
         return await interaction.response.send_message(f"❌ Le code **{code}** existe déjà.")
     
-    codes[code] = {
-        "amount": amount,
-        "infinite": infinite,
-        "active": True,
-        "used_by": []
-    }
-    save_codes()
+    create_code(code, amount, infinite)
     
     usage_type = "♾️ infini" if infinite else "🔒 unique"
     await interaction.response.send_message(
         f"✅ Code **{code}** créé !\n"
-        f"💰 Montant : {amount} coins\n"
+        f"💰 Montant : {amount:,} coins\n"
         f"📋 Type : {usage_type}"
     )
 
@@ -872,11 +905,10 @@ async def admin_createcode(interaction: discord.Interaction, code: str, amount: 
 async def admin_deletecode(interaction: discord.Interaction, code: str):
     code = code.upper()
     
-    if code not in codes:
+    if not get_code(code):
         return await interaction.response.send_message(f"❌ Le code **{code}** n'existe pas.")
     
-    del codes[code]
-    save_codes()
+    delete_code(code)
     await interaction.response.send_message(f"🗑️ Code **{code}** supprimé.")
 
 
@@ -885,11 +917,13 @@ async def admin_deletecode(interaction: discord.Interaction, code: str):
 @app_commands.default_permissions(administrator=True)
 @admin_only()
 async def admin_listcodes(interaction: discord.Interaction):
-    if not codes:
+    all_codes = get_all_codes()
+    
+    if not all_codes:
         return await interaction.response.send_message("📭 Aucun code créé.")
     
     msg = "📜 **Liste des codes :**\n\n"
-    for code_name, code_data in codes.items():
+    for code_data in all_codes:
         status = "✅ Actif" if code_data["active"] else "❌ Désactivé"
         num_uses = len(code_data['used_by'])
         
@@ -898,8 +932,8 @@ async def admin_listcodes(interaction: discord.Interaction):
         else:
             usage_type = f"🔒 Usage unique ({num_uses} utilisations)"
         
-        msg += f"**{code_name}**\n"
-        msg += f"  ├ Montant : {code_data['amount']} coins\n"
+        msg += f"**{code_data['code']}**\n"
+        msg += f"  ├ Montant : {code_data['amount']:,} coins\n"
         msg += f"  ├ Type : {usage_type}\n"
         msg += f"  └ Statut : {status}\n\n"
     
@@ -914,13 +948,14 @@ async def admin_listcodes(interaction: discord.Interaction):
 async def admin_togglecode(interaction: discord.Interaction, code: str):
     code = code.upper()
     
-    if code not in codes:
+    code_data = get_code(code)
+    if not code_data:
         return await interaction.response.send_message(f"❌ Le code **{code}** n'existe pas.")
     
-    codes[code]["active"] = not codes[code]["active"]
-    save_codes()
+    new_status = not code_data["active"]
+    update_code(code, {"active": new_status})
     
-    status = "activé ✅" if codes[code]["active"] else "désactivé ❌"
+    status = "activé ✅" if new_status else "désactivé ❌"
     await interaction.response.send_message(f"Le code **{code}** a été {status}.")
 
 
@@ -952,25 +987,18 @@ async def admin_generate(interaction: discord.Interaction, amount: int, quantity
     for i in range(quantity):
         # Générer un code aléatoire unique
         attempts = 0
-        while attempts < 100:  # Limite pour éviter boucle infinie
+        while attempts < 100:
             code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=length))
-            if code not in codes:  # Vérifier qu'il n'existe pas déjà
+            if not get_code(code):  # Vérifier qu'il n'existe pas déjà
                 break
             attempts += 1
         
         if attempts >= 100:
             return await interaction.response.send_message(f"❌ Impossible de générer {quantity} codes uniques. Essaie avec une longueur plus grande.")
         
-        # Créer le code (TOUJOURS usage unique = 1 fois au total)
-        codes[code] = {
-            "amount": amount,
-            "infinite": False,  # Usage unique = 1 seule personne peut l'utiliser
-            "active": True,
-            "used_by": []
-        }
+        # Créer le code dans MongoDB
+        create_code(code, amount, infinite=False)
         generated_codes.append(code)
-    
-    save_codes()
     
     # Créer le message de réponse
     embed = discord.Embed(
@@ -979,7 +1007,7 @@ async def admin_generate(interaction: discord.Interaction, amount: int, quantity
         color=discord.Color.green()
     )
     
-    # Diviser les codes en plusieurs champs si nécessaire (limite Discord)
+    # Diviser les codes en plusieurs champs si nécessaire
     codes_per_field = 10
     for i in range(0, len(generated_codes), codes_per_field):
         batch = generated_codes[i:i+codes_per_field]
@@ -991,7 +1019,7 @@ async def admin_generate(interaction: discord.Interaction, amount: int, quantity
     
     await interaction.response.send_message(embed=embed)
     
-    # Envoyer aussi un fichier texte si beaucoup de codes
+    # Envoyer un fichier texte si beaucoup de codes
     if quantity > 20:
         codes_text = "\n".join(generated_codes)
         with open("generated_codes.txt", "w", encoding="utf-8") as f:
@@ -1008,7 +1036,6 @@ async def admin_generate(interaction: discord.Interaction, amount: int, quantity
                 file=file
             )
         
-        # Supprimer le fichier temporaire
         os.remove("generated_codes.txt")
 
 
