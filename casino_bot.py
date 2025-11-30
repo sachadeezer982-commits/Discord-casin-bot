@@ -293,8 +293,8 @@ async def coinflip(interaction: discord.Interaction, mise: int):
         await button_interaction.response.edit_message(content="🪙 La pièce tourne... 🌀", view=view)
         await asyncio.sleep(1.5)
         
-        # Avantage maison : 45% de chance de gagner, 55% de perdre
-        if random.random() < 0.45:
+        # Avantage maison : 42% de chance de gagner, 58% de perdre
+        if random.random() < 0.42:
             resultat = choix  # Le joueur gagne
         else:
             resultat = "face" if choix == "pile" else "pile"  # Le joueur perd
@@ -304,13 +304,13 @@ async def coinflip(interaction: discord.Interaction, mise: int):
         if resultat == choix:
             set_balance(interaction.user.id, money_now + mise)
             await button_interaction.edit_original_response(
-                content=f"🎉 **{resultat.upper()} !** Tu as gagné **{mise} coins** !\n💰 Nouveau solde : **{money_now + mise} coins**",
+                content=f"🎉 **{resultat.upper()} !** Tu as gagné **{mise:,} coins** !\n💰 Nouveau solde : **{money_now + mise:,} coins**",
                 view=view
             )
         else:
             set_balance(interaction.user.id, money_now - mise)
             await button_interaction.edit_original_response(
-                content=f"💀 **{resultat.upper()} !** Tu as perdu **{mise} coins**...\n💰 Nouveau solde : **{money_now - mise} coins**",
+                content=f"💀 **{resultat.upper()} !** Tu as perdu **{mise:,} coins**...\n💰 Nouveau solde : **{money_now - mise:,} coins**",
                 view=view
             )
     
@@ -353,7 +353,7 @@ async def roulette(interaction: discord.Interaction, mise: int):
         placeholder="🎯 Choisis ton type de pari...",
         options=[
             discord.SelectOption(label="🔴 Rouge (x2)", value="rouge", emoji="🔴"),
-            discord.SelectOption(label="⚫ Noir (x2)", value="noir", emoji="⚫"),
+            discord.SelectOption(label="⚪ Noir (x2)", value="noir", emoji="⚪"),
             discord.SelectOption(label="🟢 Zéro (x36)", value="0", emoji="🟢"),
             discord.SelectOption(label="➗ Pair (x2)", value="pair", emoji="2️⃣"),
             discord.SelectOption(label="➗ Impair (x2)", value="impair", emoji="1️⃣"),
@@ -432,9 +432,8 @@ async def roulette(interaction: discord.Interaction, mise: int):
         await asyncio.sleep(1)
         
         # Avantage maison : légèrement plus de chances de perdre
-        # 48% de gagner au lieu de 48.6% (couleur/pair/impair)
-        # Le zéro sort un peu plus souvent
-        if random.random() < 0.054:  # 5.4% au lieu de 2.7%
+        # Le zéro sort beaucoup plus souvent (6% au lieu de 2.7%)
+        if random.random() < 0.06:  # 6% au lieu de 2.7%
             resultat_num = 0
         else:
             resultat_num = random.randint(1, 36)
@@ -451,7 +450,7 @@ async def roulette(interaction: discord.Interaction, mise: int):
             emoji = "🔴"
         else:
             resultat_couleur = "noir"
-            emoji = "⚫"
+            emoji = "⚪"  # Blanc au lieu de noir pour visibilité
         
         # Vérifier si gagné
         money_now = get_balance(interaction.user.id)
@@ -487,12 +486,12 @@ async def roulette(interaction: discord.Interaction, mise: int):
             gain = mise * multiplicateur
             set_balance(interaction.user.id, money_now + gain)
             await button_interaction.edit_original_response(
-                content=f"🎰 La bille s'arrête sur : {emoji} **{resultat_num}** {emoji}\n\n🎉 **GAGNÉ !** Tu remportes **{gain} coins** (x{multiplicateur}) !\n💰 Nouveau solde : **{money_now + gain} coins**"
+                content=f"🎰 La bille s'arrête sur : {emoji} **{resultat_num}** {emoji}\n\n🎉 **GAGNÉ !** Tu remportes **{gain:,} coins** (x{multiplicateur}) !\n💰 Nouveau solde : **{money_now + gain:,} coins**"
             )
         else:
             set_balance(interaction.user.id, money_now - mise)
             await button_interaction.edit_original_response(
-                content=f"🎰 La bille s'arrête sur : {emoji} **{resultat_num}** {emoji}\n\n💔 **Perdu !** Tu perds **{mise} coins**.\n💰 Nouveau solde : **{money_now - mise} coins**"
+                content=f"🎰 La bille s'arrête sur : {emoji} **{resultat_num}** {emoji}\n\n💔 **Perdu !** Tu perds **{mise:,} coins**.\n💰 Nouveau solde : **{money_now - mise:,} coins**"
             )
     
     await interaction.response.send_message(
@@ -534,8 +533,8 @@ async def slots(interaction: discord.Interaction, mise: int):
     
     # Si les 2 premiers matchent, réduire fortement les chances du 3ème
     if r1 == r2:
-        # 20% de chance d'avoir le jackpot au lieu de 20% normal
-        if random.random() < 0.20:
+        # 15% de chance d'avoir le jackpot (réduit)
+        if random.random() < 0.15:
             r3 = r1
         else:
             # Forcer un symbole différent
@@ -550,12 +549,12 @@ async def slots(interaction: discord.Interaction, mise: int):
         gain = mise * 5
         set_balance(interaction.user.id, money + gain)
         await interaction.edit_original_response(
-            content=f"🎰 | {r1} | {r2} | {r3} |\n\n🎉 **JACKPOT !** Tu gagnes **{gain} coins** !\n💰 Nouveau solde : **{money + gain} coins**"
+            content=f"🎰 | {r1} | {r2} | {r3} |\n\n🎉 **JACKPOT !** Tu gagnes **{gain:,} coins** !\n💰 Nouveau solde : **{money + gain:,} coins**"
         )
     else:
         set_balance(interaction.user.id, money - mise)
         await interaction.edit_original_response(
-            content=f"🎰 | {r1} | {r2} | {r3} |\n\n💀 Perdu ! Tu perds **{mise} coins**.\n💰 Nouveau solde : **{money - mise} coins**"
+            content=f"🎰 | {r1} | {r2} | {r3} |\n\n💀 Perdu ! Tu perds **{mise:,} coins**.\n💰 Nouveau solde : **{money - mise:,} coins**"
         )
 
 
@@ -662,10 +661,10 @@ class BlackjackGame:
             self.dealer_hand.append(self.draw_card())
         
         # Avantage maison : Si le croupier est à 17-18 et le joueur semble fort,
-        # petite chance qu'il tire une bonne carte supplémentaire
+        # chance plus élevée qu'il tire une bonne carte supplémentaire
         dealer_total = self.calculate_hand(self.dealer_hand)
-        if dealer_total in [17, 18] and random.random() < 0.15:
-            # 15% de chance de tirer une carte supplémentaire qui pourrait l'améliorer
+        if dealer_total in [17, 18] and random.random() < 0.20:
+            # 20% de chance de tirer une carte supplémentaire qui pourrait l'améliorer
             next_card_value = self.card_value(self.deck[-1]) if self.deck else 5
             if next_card_value <= 3 and dealer_total + next_card_value <= 21:
                 self.dealer_hand.append(self.draw_card())
@@ -696,8 +695,8 @@ async def blackjack(interaction: discord.Interaction, mise: int):
             f"🃏 **BLACKJACK !**\n\n"
             f"Tes cartes : {' '.join(game.player_hand)} = **21**\n"
             f"Croupier : {' '.join(game.dealer_hand)} = {game.calculate_hand(game.dealer_hand)}\n\n"
-            f"🎉 Tu gagnes **{gain} coins** (x2.5) !\n"
-            f"💰 Nouveau solde : **{money + gain} coins**"
+            f"🎉 Tu gagnes **{gain:,} coins** (x2.5) !\n"
+            f"💰 Nouveau solde : **{money + gain:,} coins**"
         )
     
     # Créer les boutons
@@ -732,12 +731,12 @@ async def blackjack(interaction: discord.Interaction, mise: int):
             
             await button_interaction.response.edit_message(
                 content=(
-                    f"🃏 **BLACKJACK** - Mise : {mise} coins\n\n"
+                    f"🃏 **BLACKJACK** - Mise : {mise:,} coins\n\n"
                     f"**Tes cartes :** {' '.join(game.player_hand)} = **{player_total}** 💥\n"
                     f"**Croupier :** {' '.join(game.dealer_hand)} = {game.calculate_hand(game.dealer_hand)}\n\n"
                     f"💀 **BUST !** Tu as dépassé 21 !\n"
-                    f"Tu perds **{mise} coins**.\n"
-                    f"💰 Nouveau solde : **{money_now - mise} coins**"
+                    f"Tu perds **{mise:,} coins**.\n"
+                    f"💰 Nouveau solde : **{money_now - mise:,} coins**"
                 ),
                 view=view
             )
@@ -767,23 +766,23 @@ async def blackjack(interaction: discord.Interaction, mise: int):
             # Croupier BUST
             gain = mise * 2
             set_balance(interaction.user.id, money_now + gain)
-            result = f"🎉 **LE CROUPIER BUST !**\nTu gagnes **{gain} coins** !\n💰 Nouveau solde : **{money_now + gain} coins**"
+            result = f"🎉 **LE CROUPIER BUST !**\nTu gagnes **{gain:,} coins** !\n💰 Nouveau solde : **{money_now + gain:,} coins**"
         elif player_total > dealer_total:
             # Joueur gagne
             gain = mise * 2
             set_balance(interaction.user.id, money_now + gain)
-            result = f"🎉 **VICTOIRE !**\nTu gagnes **{gain} coins** !\n💰 Nouveau solde : **{money_now + gain} coins**"
+            result = f"🎉 **VICTOIRE !**\nTu gagnes **{gain:,} coins** !\n💰 Nouveau solde : **{money_now + gain:,} coins**"
         elif player_total == dealer_total:
             # Égalité
-            result = f"🤝 **ÉGALITÉ !**\nTu récupères ta mise de {mise} coins.\n💰 Solde : **{money_now} coins**"
+            result = f"🤝 **ÉGALITÉ !**\nTu récupères ta mise de {mise:,} coins.\n💰 Solde : **{money_now:,} coins**"
         else:
             # Croupier gagne
             set_balance(interaction.user.id, money_now - mise)
-            result = f"💔 **DÉFAITE !**\nTu perds **{mise} coins**.\n💰 Nouveau solde : **{money_now - mise} coins**"
+            result = f"💔 **DÉFAITE !**\nTu perds **{mise:,} coins**.\n💰 Nouveau solde : **{money_now - mise:,} coins**"
         
         await button_interaction.response.edit_message(
             content=(
-                f"🃏 **BLACKJACK** - Mise : {mise} coins\n\n"
+                f"🃏 **BLACKJACK** - Mise : {mise:,} coins\n\n"
                 f"**Tes cartes :** {' '.join(game.player_hand)} = **{player_total}**\n"
                 f"**Croupier :** {' '.join(game.dealer_hand)} = **{dealer_total}**\n\n"
                 f"{result}"
@@ -1038,6 +1037,81 @@ async def admin_generate(interaction: discord.Interaction, amount: int, quantity
         
         os.remove("generated_codes.txt")
 
+
+@bot.tree.command(name="admin_generate", description="[ADMIN] Générer plusieurs codes uniques automatiquement")
+@app_commands.describe(
+    amount="Montant de coins par code",
+    quantity="Nombre de codes à générer",
+    length="Longueur des codes (par défaut: 8)"
+)
+@admin_only()
+async def admin_generate(interaction: discord.Interaction, amount: int, quantity: int, length: int = 8):
+    if quantity > 50:
+        return await interaction.response.send_message("❌ Maximum 50 codes à la fois.")
+    
+    if length < 4 or length > 20:
+        return await interaction.response.send_message("❌ La longueur doit être entre 4 et 20 caractères.")
+    
+    if amount < 1:
+        return await interaction.response.send_message("❌ Le montant doit être positif.")
+    
+    # Générer les codes
+    generated_codes = []
+    
+    for i in range(quantity):
+        # Générer un code aléatoire unique
+        while True:
+            code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=length))
+            if code not in codes:  # Vérifier qu'il n'existe pas déjà
+                break
+        
+        # Créer le code
+        codes[code] = {
+            "amount": amount,
+            "infinite": False,  # Toujours usage unique
+            "active": True,
+            "used_by": []
+        }
+        generated_codes.append(code)
+    
+    save_codes()
+    
+    # Créer le message de réponse
+    embed = discord.Embed(
+        title="🎟️ **CODES GÉNÉRÉS**",
+        description=f"**{quantity} codes** de **{amount} coins** créés avec succès !",
+        color=discord.Color.green()
+    )
+    
+    # Diviser les codes en plusieurs champs si nécessaire (limite Discord)
+    codes_per_field = 10
+    for i in range(0, len(generated_codes), codes_per_field):
+        batch = generated_codes[i:i+codes_per_field]
+        field_name = f"📋 Codes {i+1}-{min(i+codes_per_field, len(generated_codes))}"
+        field_value = "\n".join([f"`{code}`" for code in batch])
+        embed.add_field(name=field_name, value=field_value, inline=False)
+    
+    embed.set_footer(text="⚠️ Chaque code est à usage unique (1 joueur)")
+    
+    await interaction.response.send_message(embed=embed)
+    
+    # Envoyer aussi un fichier texte si beaucoup de codes
+    if quantity > 20:
+        codes_text = "\n".join(generated_codes)
+        with open("generated_codes.txt", "w") as f:
+            f.write(f"Codes générés - {amount} coins chacun\n")
+            f.write("="*40 + "\n\n")
+            f.write(codes_text)
+        
+        with open("generated_codes.txt", "rb") as f:
+            file = discord.File(f, filename=f"codes_{amount}coins_{quantity}x.txt")
+            await interaction.followup.send(
+                "📄 **Fichier texte avec tous les codes :**",
+                file=file
+            )
+        
+        # Supprimer le fichier temporaire
+        os.remove("generated_codes.txt")
 
 
 # -------------------------------
