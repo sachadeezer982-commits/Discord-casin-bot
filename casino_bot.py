@@ -76,7 +76,7 @@ def set_balance(user_id, amount):
         {"user_id": str(user_id)},
         {"$set": {
             "balance": max(0, amount),
-            "last_updated": datetime.utcnow()
+            "last_updated": datetime.now(datetime.UTC)
         }},
         upsert=True  # Crée le document s'il n'existe pas
     )
@@ -97,7 +97,7 @@ def create_code(code_name, amount, infinite=False):
         "infinite": infinite,
         "active": True,
         "used_by": [],
-        "created_at": datetime.utcnow()
+        "created_at": datetime.now(datetime.UTC)
     })
 
 def update_code(code_name, updates):
@@ -272,11 +272,14 @@ async def redeem(interaction: discord.Interaction, code: str):
 @bot.tree.command(name="coinflip", description="Parie sur pile ou face")
 @app_commands.describe(mise="Montant à miser")
 async def coinflip(interaction: discord.Interaction, mise: int):
+    # Defer immédiatement pour éviter timeout
+    await interaction.response.defer()
+    
     if mise < 100:
-        return await interaction.response.send_message("❌ La mise minimum est 100 coins.")
+        return await interaction.followup.send("❌ La mise minimum est 100 coins.")
     money = get_balance(interaction.user.id)
     if mise > money:
-        return await interaction.response.send_message("❌ Tu n'as pas assez de coins.")
+        return await interaction.followup.send("❌ Tu n'as pas assez de coins.")
     
     # Créer les boutons
     view = discord.ui.View(timeout=30)
@@ -329,7 +332,7 @@ async def coinflip(interaction: discord.Interaction, mise: int):
     view.add_item(pile_button)
     view.add_item(face_button)
     
-    await interaction.response.send_message(
+    await interaction.followup.send(
         f"🎲 **COINFLIP** - Mise : {mise:,} coins\nChoisis **PILE** ou **FACE** :\n\n"
         f"📊 *Chances de gagner : 50%* | Gain potentiel : x2",
         view=view
@@ -673,11 +676,14 @@ class BlackjackGame:
 @bot.tree.command(name="blackjack", description="Joue au Blackjack contre le croupier")
 @app_commands.describe(mise="Montant à miser")
 async def blackjack(interaction: discord.Interaction, mise: int):
+    # Defer immédiatement pour éviter timeout
+    await interaction.response.defer()
+    
     if mise < 100:
-        return await interaction.response.send_message("❌ La mise minimum est 100 coins.")
+        return await interaction.followup.send("❌ La mise minimum est 100 coins.")
     money = get_balance(interaction.user.id)
     if mise > money:
-        return await interaction.response.send_message("❌ Tu n'as pas assez de coins.")
+        return await interaction.followup.send("❌ Tu n'as pas assez de coins.")
     
     # Initialiser la partie
     game = BlackjackGame()
@@ -691,7 +697,7 @@ async def blackjack(interaction: discord.Interaction, mise: int):
     if game.is_blackjack(game.player_hand):
         gain = int(mise * 2.5)
         set_balance(interaction.user.id, money + gain)
-        return await interaction.response.send_message(
+        return await interaction.followup.send(
             f"🃏 **BLACKJACK !**\n\n"
             f"Tes cartes : {' '.join(game.player_hand)} = **21**\n"
             f"Croupier : {' '.join(game.dealer_hand)} = {game.calculate_hand(game.dealer_hand)}\n\n"
@@ -702,8 +708,8 @@ async def blackjack(interaction: discord.Interaction, mise: int):
     # Créer les boutons
     view = discord.ui.View(timeout=120)
     
-    async def update_game_message(button_interaction: discord.Interaction):
-        """Met à jour l'affichage de la partie"""
+    def get_game_message():
+        """Génère le message de la partie"""
         player_total = game.calculate_hand(game.player_hand)
         content = (
             f"🃏 **BLACKJACK** - Mise : {mise:,} coins\n"
@@ -742,7 +748,7 @@ async def blackjack(interaction: discord.Interaction, mise: int):
             )
         else:
             # Continuer à jouer
-            content = await update_game_message(button_interaction)
+            content = get_game_message()
             await button_interaction.response.edit_message(content=content, view=view)
     
     async def stand_callback(button_interaction: discord.Interaction):
@@ -801,8 +807,8 @@ async def blackjack(interaction: discord.Interaction, mise: int):
     view.add_item(stand_button)
     
     # Envoyer le message initial
-    content = await update_game_message(interaction)
-    await interaction.response.send_message(content=content, view=view)
+    content = get_game_message()
+    await interaction.followup.send(content=content, view=view)
 
 
 
@@ -1062,4 +1068,3 @@ if __name__ == "__main__":
     else:
         print("🚀 Démarrage du bot...")
         bot.run(TOKEN)
-
