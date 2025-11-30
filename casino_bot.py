@@ -958,85 +958,6 @@ async def admin_togglecode(interaction: discord.Interaction, code: str):
     await interaction.response.send_message(f"Le code **{code}** a été {status}.")
 
 
-@bot.tree.command(name="admin_generate", description="[ADMIN] Générer plusieurs codes uniques automatiquement")
-@app_commands.describe(
-    amount="Montant de coins par code",
-    quantity="Nombre de codes à générer",
-    length="Longueur des codes (4-20, défaut: 8)"
-)
-@app_commands.guild_only()
-@app_commands.default_permissions(administrator=True)
-@admin_only()
-async def admin_generate(interaction: discord.Interaction, amount: int, quantity: int, length: int = 8):
-    if quantity > 50:
-        return await interaction.response.send_message("❌ Maximum 50 codes à la fois.")
-    
-    if quantity < 1:
-        return await interaction.response.send_message("❌ Il faut générer au moins 1 code.")
-    
-    if length < 4 or length > 20:
-        return await interaction.response.send_message("❌ La longueur doit être entre 4 et 20 caractères.")
-    
-    if amount < 1:
-        return await interaction.response.send_message("❌ Le montant doit être positif.")
-    
-    # Générer les codes
-    generated_codes = []
-    
-    for i in range(quantity):
-        # Générer un code aléatoire unique
-        attempts = 0
-        while attempts < 100:
-            code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=length))
-            if not get_code(code):  # Vérifier qu'il n'existe pas déjà
-                break
-            attempts += 1
-        
-        if attempts >= 100:
-            return await interaction.response.send_message(f"❌ Impossible de générer {quantity} codes uniques. Essaie avec une longueur plus grande.")
-        
-        # Créer le code dans MongoDB
-        create_code(code, amount, infinite=False)
-        generated_codes.append(code)
-    
-    # Créer le message de réponse
-    embed = discord.Embed(
-        title="🎟️ **CODES GÉNÉRÉS**",
-        description=f"**{quantity} codes** de **{amount:,} coins** créés avec succès !",
-        color=discord.Color.green()
-    )
-    
-    # Diviser les codes en plusieurs champs si nécessaire
-    codes_per_field = 10
-    for i in range(0, len(generated_codes), codes_per_field):
-        batch = generated_codes[i:i+codes_per_field]
-        field_name = f"📋 Codes {i+1}-{min(i+codes_per_field, len(generated_codes))}"
-        field_value = "\n".join([f"`{code}`" for code in batch])
-        embed.add_field(name=field_name, value=field_value, inline=False)
-    
-    embed.set_footer(text="⚠️ Chaque code est à usage UNIQUE (1 seule personne au total)")
-    
-    await interaction.response.send_message(embed=embed)
-    
-    # Envoyer un fichier texte si beaucoup de codes
-    if quantity > 20:
-        codes_text = "\n".join(generated_codes)
-        with open("generated_codes.txt", "w", encoding="utf-8") as f:
-            f.write(f"Codes générés - {amount:,} coins chacun\n")
-            f.write("="*40 + "\n")
-            f.write("⚠️ Usage UNIQUE : Chaque code utilisable 1 fois au total\n")
-            f.write("="*40 + "\n\n")
-            f.write(codes_text)
-        
-        with open("generated_codes.txt", "rb") as f:
-            file = discord.File(f, filename=f"codes_{amount}coins_{quantity}x.txt")
-            await interaction.followup.send(
-                "📄 **Fichier texte avec tous les codes :**",
-                file=file
-            )
-        
-        os.remove("generated_codes.txt")
-
 
 @bot.tree.command(name="admin_generate", description="[ADMIN] Générer plusieurs codes uniques automatiquement")
 @app_commands.describe(
@@ -1141,3 +1062,4 @@ if __name__ == "__main__":
     else:
         print("🚀 Démarrage du bot...")
         bot.run(TOKEN)
+
