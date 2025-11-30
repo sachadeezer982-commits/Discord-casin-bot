@@ -10,7 +10,6 @@ from threading import Thread
 from flask import Flask
 from pymongo import MongoClient
 from datetime import datetime
-import string
 
 # -------------------------------
 # SITE WEB FACADE POUR RENDER
@@ -30,26 +29,22 @@ def keep_alive():
     t = Thread(target=run)
     t.start()
 
-
 # -------------------------------
 # CONFIGURATION
 # -------------------------------
 
-# Récupérer l'ADMIN_ID depuis les variables d'environnement
 ADMIN_ID_STR = os.getenv('ADMIN_ID', '634627605966094347')
-ADMIN_ID = int(ADMIN_ID_STR)  # Convertir en entier
+ADMIN_ID = int(ADMIN_ID_STR)
 
-# MongoDB Atlas Connection
 MONGODB_URI = os.getenv('MONGODB_URI')
 if not MONGODB_URI:
     print("❌ ERREUR : Variable MONGODB_URI manquante !")
     exit(1)
 
-# Connexion à MongoDB
 mongo_client = MongoClient(MONGODB_URI)
-db = mongo_client['casino_bot']  # Nom de la base de données
-players_collection = db['players']  # Collection pour les joueurs
-codes_collection = db['codes']  # Collection pour les codes
+db = mongo_client['casino_bot']
+players_collection = db['players']
+codes_collection = db['codes']
 
 print("✅ Connecté à MongoDB Atlas")
 
@@ -58,39 +53,28 @@ intents.message_content = True
 
 bot = commands.Bot(command_prefix="/", intents=intents)
 
-
 # -------------------------------
 # GESTION DES DONNÉES (MONGODB)
 # -------------------------------
 
 def get_balance(user_id):
-    """Récupère le solde d'un joueur depuis MongoDB"""
     user_data = players_collection.find_one({"user_id": str(user_id)})
-    if user_data:
-        return user_data.get("balance", 0)
-    return 0
+    return user_data.get("balance", 0) if user_data else 0
 
 def set_balance(user_id, amount):
-    """Met à jour le solde d'un joueur dans MongoDB"""
     players_collection.update_one(
         {"user_id": str(user_id)},
-        {"$set": {
-            "balance": max(0, amount),
-            "last_updated": datetime.utcnow()
-        }},
-        upsert=True  # Crée le document s'il n'existe pas
+        {"$set": {"balance": max(0, amount), "last_updated": datetime.utcnow()}},
+        upsert=True
     )
 
 def get_all_players():
-    """Récupère tous les joueurs"""
     return {doc["user_id"]: doc["balance"] for doc in players_collection.find()}
 
 def get_code(code_name):
-    """Récupère un code promo depuis MongoDB"""
     return codes_collection.find_one({"code": code_name.upper()})
 
 def create_code(code_name, amount, infinite=False):
-    """Crée un nouveau code promo"""
     codes_collection.insert_one({
         "code": code_name.upper(),
         "amount": amount,
@@ -101,27 +85,16 @@ def create_code(code_name, amount, infinite=False):
     })
 
 def update_code(code_name, updates):
-    """Met à jour un code promo"""
-    codes_collection.update_one(
-        {"code": code_name.upper()},
-        {"$set": updates}
-    )
+    codes_collection.update_one({"code": code_name.upper()}, {"$set": updates})
 
 def delete_code(code_name):
-    """Supprime un code promo"""
     codes_collection.delete_one({"code": code_name.upper()})
 
 def get_all_codes():
-    """Récupère tous les codes"""
     return list(codes_collection.find())
 
 def add_code_user(code_name, user_id):
-    """Ajoute un utilisateur à la liste des utilisateurs d'un code"""
-    codes_collection.update_one(
-        {"code": code_name.upper()},
-        {"$push": {"used_by": str(user_id)}}
-    )
-
+    codes_collection.update_one({"code": code_name.upper()}, {"$push": {"used_by": str(user_id)}})
 
 # -------------------------------
 # COMMANDES JOUEURS
@@ -136,12 +109,10 @@ async def on_ready():
     except Exception as e:
         print(f"❌ Erreur de sync: {e}")
 
-
 @bot.tree.command(name="balance", description="Voir ton argent")
 async def balance(interaction: discord.Interaction):
     money = get_balance(interaction.user.id)
     await interaction.response.send_message(f"💰 {interaction.user.name}, tu as **{money} coins**.")
-
 
 @bot.tree.command(name="help", description="Affiche toutes les commandes disponibles")
 async def help_command(interaction: discord.Interaction):
@@ -150,301 +121,136 @@ async def help_command(interaction: discord.Interaction):
         description="Voici toutes les commandes disponibles :",
         color=discord.Color.gold()
     )
-    
-    embed.add_field(
-        name="💰 **Informations**",
-        value=(
-            "`/balance` - Voir ton argent\n"
-            "`/top` - Classement des 10 joueurs les plus riches\n"
-            "`/help` - Affiche ce message"
-        ),
-        inline=False
-    )
-    
-    embed.add_field(
-        name="🎮 **Jeux de Casino**",
-        value=(
-            "`/coinflip [mise]` - Pile ou face (x2)\n"
-            "`/roulette [mise]` - Roulette européenne (couleur x2, numéro x36)\n"
-            "`/slots [mise]` - Machine à sous (x5)\n"
-            "`/blackjack [mise]` - Blackjack contre le croupier (x2 ou x2.5)"
-        ),
-        inline=False
-    )
-    
-    embed.add_field(
-        name="🎟️ **Codes Promo**",
-        value="`/redeem [code]` - Utiliser un code promo pour recevoir des coins",
-        inline=False
-    )
-    
-    embed.add_field(
-        name="📋 **Règles Importantes**",
-        value=(
-            "• Mise minimum : **100 coins**\n"
-            "• Blackjack naturel : **x2.5**\n"
-            "• Les codes promo ne peuvent être utilisés qu'**une seule fois par personne**\n"
-            "• Timeout des jeux : **30-120 secondes**"
-        ),
-        inline=False
-    )
-    
+    embed.add_field(name="💰 **Informations**", value="`/balance` - Voir ton argent\n`/top` - Classement des 10 joueurs les plus riches\n`/help` - Affiche ce message", inline=False)
+    embed.add_field(name="🎮 **Jeux de Casino**", value="`/coinflip [mise]` - Pile ou face (x2)\n`/roulette [mise]` - Roulette européenne (couleur x2, numéro x36)\n`/slots [mise]` - Machine à sous (x5)\n`/blackjack [mise]` - Blackjack contre le croupier (x2 ou x2.5)", inline=False)
+    embed.add_field(name="🎟️ **Codes Promo**", value="`/redeem [code]` - Utiliser un code promo pour recevoir des coins", inline=False)
+    embed.add_field(name="📋 **Règles Importantes**", value="• Mise minimum : **100 coins**\n• Blackjack naturel : **x2.5**\n• Les codes promo ne peuvent être utilisés qu'**une seule fois par personne**\n• Timeout des jeux : **30-120 secondes**", inline=False)
     embed.set_footer(text="🎲 Bonne chance au casino !")
-    
     await interaction.response.send_message(embed=embed)
-
 
 @bot.tree.command(name="top", description="Classement des 10 joueurs les plus riches")
 async def top(interaction: discord.Interaction):
-    all_players = get_all_players()
-    
-    if not all_players:
+    # Optimisé : Tri côté MongoDB pour éviter de charger tout en mémoire
+    top_players = list(players_collection.find().sort("balance", -1).limit(10))
+    if not top_players:
         return await interaction.response.send_message("📭 Aucun joueur n'a encore d'argent.")
     
-    # Trier les joueurs par argent (du plus riche au plus pauvre)
-    sorted_players = sorted(all_players.items(), key=lambda x: x[1], reverse=True)[:10]
-    
-    embed = discord.Embed(
-        title="🏆 **TOP 10 JOUEURS LES PLUS RICHES**",
-        color=discord.Color.gold()
-    )
-    
+    embed = discord.Embed(title="🏆 **TOP 10 JOUEURS LES PLUS RICHES**", color=discord.Color.gold())
     medals = ["🥇", "🥈", "🥉"]
     description = ""
-    
-    for i, (user_id, money) in enumerate(sorted_players):
+    for i, doc in enumerate(top_players):
+        user_id = doc["user_id"]
+        money = doc["balance"]
         try:
             user = await bot.fetch_user(int(user_id))
             username = user.name
         except:
             username = f"Joueur #{user_id[:4]}"
-        
         medal = medals[i] if i < 3 else f"**{i+1}.**"
         description += f"{medal} **{username}** — {money:,} coins\n"
-    
     embed.description = description
     embed.set_footer(text="💰 Continue à jouer pour grimper dans le classement !")
-    
     await interaction.response.send_message(embed=embed)
-
 
 @bot.tree.command(name="redeem", description="Utiliser un code promo")
 @app_commands.describe(code="Le code à utiliser")
 async def redeem(interaction: discord.Interaction, code: str):
+    await interaction.response.defer()  # Ajouté pour éviter timeout
     code = code.upper()
-    
     code_data = get_code(code)
-    
     if not code_data:
-        return await interaction.response.send_message("❌ Ce code n'existe pas.")
-    
-    # Vérifier si le code est encore actif
+        return await interaction.followup.send("❌ Ce code n'existe pas.")
     if not code_data["active"]:
-        return await interaction.response.send_message("❌ Ce code a été désactivé.")
-    
+        return await interaction.followup.send("❌ Ce code a été désactivé.")
     user_id = str(interaction.user.id)
-    
-    # Si code à usage UNIQUE (pas infini), vérifier si QUELQU'UN l'a déjà utilisé
-    if not code_data["infinite"]:
-        if len(code_data["used_by"]) > 0:
-            return await interaction.response.send_message("❌ Ce code a déjà été utilisé par quelqu'un.")
-    
-    # Si code INFINI, vérifier si CET utilisateur l'a déjà utilisé
+    if not code_data["infinite"] and len(code_data["used_by"]) > 0:
+        return await interaction.followup.send("❌ Ce code a déjà été utilisé par quelqu'un.")
     if user_id in code_data["used_by"]:
-        return await interaction.response.send_message("❌ Tu as déjà utilisé ce code.")
-    
-    # Ajouter les coins
+        return await interaction.followup.send("❌ Tu as déjà utilisé ce code.")
     amount = code_data["amount"]
     money = get_balance(interaction.user.id)
     set_balance(interaction.user.id, money + amount)
-    
-    # Marquer comme utilisé par cet utilisateur
     add_code_user(code, user_id)
-    
     usage_info = "♾️ (réutilisable par d'autres)" if code_data["infinite"] else "🔒 (usage unique total)"
-    await interaction.response.send_message(
-        f"✅ Code **{code}** utilisé ! {usage_info}\n"
-        f"💰 Tu as reçu **{amount:,} coins** !\n"
-        f"💵 Nouveau solde : **{money + amount:,} coins**"
-    )
-
+    await interaction.followup.send(f"✅ Code **{code}** utilisé ! {usage_info}\n💰 Tu as reçu **{amount:,} coins** !\n💵 Nouveau solde : **{money + amount:,} coins**")
 
 @bot.tree.command(name="coinflip", description="Parie sur pile ou face")
 @app_commands.describe(mise="Montant à miser")
 async def coinflip(interaction: discord.Interaction, mise: int):
-    # Defer immédiatement pour éviter timeout
     await interaction.response.defer()
-    
     if mise < 100:
         return await interaction.followup.send("❌ La mise minimum est 100 coins.")
     money = get_balance(interaction.user.id)
     if mise > money:
         return await interaction.followup.send("❌ Tu n'as pas assez de coins.")
-    
-    # Créer les boutons
     view = discord.ui.View(timeout=30)
-    
     async def coinflip_callback(button_interaction: discord.Interaction, choix: str):
         if button_interaction.user.id != interaction.user.id:
             return await button_interaction.response.send_message("❌ Ce n'est pas ton jeu !", ephemeral=True)
-        
-        # Désactiver les boutons
         for item in view.children:
             item.disabled = True
-        
-        # Animation
         await button_interaction.response.edit_message(content="🪙 La pièce tourne... 🌀", view=view)
         await asyncio.sleep(1.5)
-        
-        # Avantage maison : 42% de chance de gagner, 58% de perdre
         if random.random() < 0.42:
-            resultat = choix  # Le joueur gagne
+            resultat = choix
         else:
-            resultat = "face" if choix == "pile" else "pile"  # Le joueur perd
-        
+            resultat = "face" if choix == "pile" else "pile"
         money_now = get_balance(interaction.user.id)
-        
         if resultat == choix:
             set_balance(interaction.user.id, money_now + mise)
-            await button_interaction.edit_original_response(
-                content=f"🎉 **{resultat.upper()} !** Tu as gagné **{mise:,} coins** !\n💰 Nouveau solde : **{money_now + mise:,} coins**",
-                view=view
-            )
+            await button_interaction.edit_original_response(content=f"🎉 **{resultat.upper()} !** Tu as gagné **{mise:,} coins** !\n💰 Nouveau solde : **{money_now + mise:,} coins**", view=view)
         else:
             set_balance(interaction.user.id, money_now - mise)
-            await button_interaction.edit_original_response(
-                content=f"💀 **{resultat.upper()} !** Tu as perdu **{mise:,} coins**...\n💰 Nouveau solde : **{money_now - mise:,} coins**",
-                view=view
-            )
-    
-    # Bouton Pile
+            await button_interaction.edit_original_response(content=f"💀 **{resultat.upper()} !** Tu as perdu **{mise:,} coins**...\n💰 Nouveau solde : **{money_now - mise:,} coins**", view=view)
     pile_button = discord.ui.Button(label="🪙 PILE", style=discord.ButtonStyle.primary)
-    async def pile_callback(button_interaction: discord.Interaction):
-        await coinflip_callback(button_interaction, "pile")
-    pile_button.callback = pile_callback
-    
-    # Bouton Face
+    pile_button.callback = lambda i: coinflip_callback(i, "pile")
     face_button = discord.ui.Button(label="🪙 FACE", style=discord.ButtonStyle.success)
-    async def face_callback(button_interaction: discord.Interaction):
-        await coinflip_callback(button_interaction, "face")
-    face_button.callback = face_callback
-    
+    face_button.callback = lambda i: coinflip_callback(i, "face")
     view.add_item(pile_button)
     view.add_item(face_button)
-    
-    await interaction.followup.send(
-        f"🎲 **COINFLIP** - Mise : {mise:,} coins\nChoisis **PILE** ou **FACE** :\n\n"
-        f"📊 *Chances de gagner : 50%* | Gain potentiel : x2",
-        view=view
-    )
-
+    await interaction.followup.send(f"🎲 **COINFLIP** - Mise : {mise:,} coins\nChoisis **PILE** ou **FACE** :\n\n📊 *Chances de gagner : 50%* | Gain potentiel : x2", view=view)
 
 @bot.tree.command(name="roulette", description="Parie sur la roulette (nombre, couleur, pair/impair)")
 @app_commands.describe(mise="Montant à miser")
 async def roulette(interaction: discord.Interaction, mise: int):
+    await interaction.response.defer()  # Ajouté
     if mise < 100:
-        return await interaction.response.send_message("❌ La mise minimum est 100 coins.")
+        return await interaction.followup.send("❌ La mise minimum est 100 coins.")
     money = get_balance(interaction.user.id)
     if mise > money:
-        return await interaction.response.send_message("❌ Tu n'as pas assez de coins.")
-
-    # Créer les boutons avec menu déroulant
+        return await interaction.followup.send("❌ Tu n'as pas assez de coins.")
     view = discord.ui.View(timeout=60)
-    
-    # Menu pour choisir le type de pari
-    select_menu = discord.ui.Select(
-        placeholder="🎯 Choisis ton type de pari...",
-        options=[
-            discord.SelectOption(label="🔴 Rouge (x2)", value="rouge", emoji="🔴"),
-            discord.SelectOption(label="⚪ Noir (x2)", value="noir", emoji="⚪"),
-            discord.SelectOption(label="🟢 Zéro (x36)", value="0", emoji="🟢"),
-            discord.SelectOption(label="➗ Pair (x2)", value="pair", emoji="2️⃣"),
-            discord.SelectOption(label="➗ Impair (x2)", value="impair", emoji="1️⃣"),
-            discord.SelectOption(label="🔢 Numéro 1-18 (x2)", value="low", emoji="📉"),
-            discord.SelectOption(label="🔢 Numéro 19-36 (x2)", value="high", emoji="📈"),
-        ]
-    )
-    
-    # Variables pour stocker le choix
-    user_choice = {"type": None, "value": None}
-    
+    select_menu = discord.ui.Select(placeholder="🎯 Choisis ton type de pari...", options=[
+        discord.SelectOption(label="🔴 Rouge (x2)", value="rouge"),
+        discord.SelectOption(label="⚪ Noir (x2)", value="noir"),
+        discord.SelectOption(label="🟢 Zéro (x36)", value="0"),
+        discord.SelectOption(label="➗ Pair (x2)", value="pair"),
+        discord.SelectOption(label="➗ Impair (x2)", value="impair"),
+        discord.SelectOption(label="🔢 Numéro 1-18 (x2)", value="low"),
+        discord.SelectOption(label="🔢 Numéro 19-36 (x2)", value="high"),
+    ])
     async def select_callback(select_interaction: discord.Interaction):
         if select_interaction.user.id != interaction.user.id:
             return await select_interaction.response.send_message("❌ Ce n'est pas ton jeu !", ephemeral=True)
-        
         choice = select_menu.values[0]
-        
-        # Si choix de numéro spécifique
-        if choice not in ["rouge", "noir", "pair", "impair", "low", "high", "0"]:
-            user_choice["type"] = "number"
-            user_choice["value"] = int(choice)
-        else:
-            user_choice["type"] = choice
-        
-        # Si on choisit un numéro entre 1-36, afficher les boutons de numéros
-        if choice in ["rouge", "noir", "pair", "impair", "low", "high", "0"]:
-            await play_roulette(select_interaction, choice)
-        else:
-            # Afficher le sélecteur de numéros
-            await show_number_selector(select_interaction)
-    
+        await play_roulette(select_interaction, choice)
     select_menu.callback = select_callback
     view.add_item(select_menu)
-    
-    # Boutons pour numéros spécifiques
-    number_buttons_view = discord.ui.View(timeout=60)
-    
-    async def show_number_selector(button_interaction: discord.Interaction):
-        number_buttons_view.clear_items()
-        
-        # Créer 4 rangées de 9 numéros chacune
-        for row in range(4):
-            for i in range(9):
-                num = row * 9 + i + 1
-                if num <= 36:
-                    btn = discord.ui.Button(
-                        label=str(num),
-                        style=discord.ButtonStyle.primary if num in [1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36] else discord.ButtonStyle.secondary,
-                        row=row
-                    )
-                    
-                    async def number_callback(inter: discord.Interaction, number=num):
-                        if inter.user.id != interaction.user.id:
-                            return await inter.response.send_message("❌ Ce n'est pas ton jeu !", ephemeral=True)
-                        await play_roulette(inter, str(number))
-                    
-                    btn.callback = number_callback
-                    number_buttons_view.add_item(btn)
-        
-        await button_interaction.response.edit_message(
-            content=f"🎰 **ROULETTE** - Mise : {mise} coins\n🔢 Choisis un numéro (1-36) - Gain x36 :",
-            view=number_buttons_view
-        )
-    
+    await interaction.followup.send(f"🎰 **ROULETTE** - Mise : {mise:,} coins\n🎯 Choisis ton type de pari :\n\n📊 *Chances : Rouge/Noir 48.6% | Numéro 2.7%* | Gains : x2 ou x36", view=view)
+
     async def play_roulette(button_interaction: discord.Interaction, choice: str):
-        # Désactiver tous les boutons
         for item in view.children:
             item.disabled = True
-        for item in number_buttons_view.children:
-            item.disabled = True
-        
-        # Animation
         await button_interaction.response.edit_message(content="🎰 La roulette tourne... 🌀", view=None)
         await asyncio.sleep(1)
         await button_interaction.edit_original_response(content="🎰 La bille roule... 🔄")
         await asyncio.sleep(1)
-        
-        # Avantage maison : légèrement plus de chances de perdre
-        # Le zéro sort beaucoup plus souvent (6% au lieu de 2.7%)
-        if random.random() < 0.06:  # 6% au lieu de 2.7%
+        if random.random() < 0.06:
             resultat_num = 0
         else:
             resultat_num = random.randint(1, 36)
-        
-        # Définir les numéros rouges et noirs
         rouges = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36]
         noirs = [2, 4, 6, 8, 10, 11, 13, 15, 17, 20, 22, 24, 26, 28, 29, 31, 33, 35]
-        
         if resultat_num == 0:
             resultat_couleur = "vert"
             emoji = "🟢"
@@ -453,13 +259,10 @@ async def roulette(interaction: discord.Interaction, mise: int):
             emoji = "🔴"
         else:
             resultat_couleur = "noir"
-            emoji = "⚪"  # Blanc au lieu de noir pour visibilité
-        
-        # Vérifier si gagné
+            emoji = "⚪"
         money_now = get_balance(interaction.user.id)
         gagne = False
         multiplicateur = 0
-        
         if choice == "rouge" and resultat_couleur == "rouge":
             gagne = True
             multiplicateur = 2
@@ -483,586 +286,4 @@ async def roulette(interaction: discord.Interaction, mise: int):
             multiplicateur = 2
         elif choice.isdigit() and int(choice) == resultat_num:
             gagne = True
-            multiplicateur = 36
-        
-        if gagne:
-            gain = mise * multiplicateur
-            set_balance(interaction.user.id, money_now + gain)
-            await button_interaction.edit_original_response(
-                content=f"🎰 La bille s'arrête sur : {emoji} **{resultat_num}** {emoji}\n\n🎉 **GAGNÉ !** Tu remportes **{gain:,} coins** (x{multiplicateur}) !\n💰 Nouveau solde : **{money_now + gain:,} coins**"
-            )
-        else:
-            set_balance(interaction.user.id, money_now - mise)
-            await button_interaction.edit_original_response(
-                content=f"🎰 La bille s'arrête sur : {emoji} **{resultat_num}** {emoji}\n\n💔 **Perdu !** Tu perds **{mise:,} coins**.\n💰 Nouveau solde : **{money_now - mise:,} coins**"
-            )
-    
-    await interaction.response.send_message(
-        f"🎰 **ROULETTE** - Mise : {mise:,} coins\n🎯 Choisis ton type de pari :\n\n"
-        f"📊 *Chances : Rouge/Noir 48.6% | Numéro 2.7%* | Gains : x2 ou x36",
-        view=view
-    )
-
-
-@bot.tree.command(name="slots", description="Machine à sous simple")
-@app_commands.describe(mise="Montant à miser")
-async def slots(interaction: discord.Interaction, mise: int):
-    if mise < 100:
-        return await interaction.response.send_message("❌ La mise minimum est 100 coins.")
-    money = get_balance(interaction.user.id)
-    if mise > money:
-        return await interaction.response.send_message("❌ Tu n'as pas assez de coins.")
-
-    symbols = ["🍒", "🍋", "⭐", "🔔", "7️⃣"]
-    
-    await interaction.response.send_message(
-        f"🎰 **SLOTS** - Mise : {mise:,} coins\n"
-        f"📊 *Chance de jackpot : ~20%* | Gain : x5\n\n"
-        f"Lancement des rouleaux..."
-    )
-    await asyncio.sleep(0.5)
-    
-    # Avantage maison : pondération des symboles
-    # Plus de chances d'avoir des symboles différents
-    weights = [25, 25, 20, 20, 10]  # 7️⃣ sort moins souvent
-    
-    r1 = random.choices(symbols, weights=weights)[0]
-    await interaction.edit_original_response(content=f"🎰 | {r1} | ❓ | ❓ |")
-    await asyncio.sleep(0.7)
-    
-    r2 = random.choices(symbols, weights=weights)[0]
-    await interaction.edit_original_response(content=f"🎰 | {r1} | {r2} | ❓ |")
-    await asyncio.sleep(0.7)
-    
-    # Si les 2 premiers matchent, réduire fortement les chances du 3ème
-    if r1 == r2:
-        # 15% de chance d'avoir le jackpot (réduit)
-        if random.random() < 0.15:
-            r3 = r1
-        else:
-            # Forcer un symbole différent
-            other_symbols = [s for s in symbols if s != r1]
-            r3 = random.choice(other_symbols)
-    else:
-        r3 = random.choices(symbols, weights=weights)[0]
-    await interaction.edit_original_response(content=f"🎰 | {r1} | {r2} | {r3} |")
-    await asyncio.sleep(1)
-
-    if r1 == r2 == r3:
-        gain = mise * 5
-        set_balance(interaction.user.id, money + gain)
-        await interaction.edit_original_response(
-            content=f"🎰 | {r1} | {r2} | {r3} |\n\n🎉 **JACKPOT !** Tu gagnes **{gain:,} coins** !\n💰 Nouveau solde : **{money + gain:,} coins**"
-        )
-    else:
-        set_balance(interaction.user.id, money - mise)
-        await interaction.edit_original_response(
-            content=f"🎰 | {r1} | {r2} | {r3} |\n\n💀 Perdu ! Tu perds **{mise:,} coins**.\n💰 Nouveau solde : **{money - mise:,} coins**"
-        )
-
-
-# -------------------------------
-# BLACKJACK
-# -------------------------------
-
-class BlackjackGame:
-    """
-    ALGORITHME BLACKJACK :
-    
-    1. INITIALISATION :
-       - Créer un deck de 52 cartes (4 couleurs × 13 valeurs)
-       - Mélanger le deck
-       - Distribuer 2 cartes au joueur et 2 au croupier
-       - Le croupier montre 1 carte cachée
-    
-    2. CALCUL DES POINTS :
-       - Cartes 2-10 : valeur faciale
-       - Figures (J, Q, K) : 10 points
-       - As : 11 points (ou 1 si total > 21)
-       - Si total > 21 avec As à 11, convertir un As en 1
-    
-    3. LOGIQUE DU JEU :
-       - Joueur choisit : HIT (carte) ou STAND (rester)
-       - Si joueur > 21 : BUST (perdu)
-       - Si joueur STAND : tour du croupier
-       - Croupier DOIT tirer jusqu'à 17+ points
-       - Si croupier > 21 : joueur gagne
-       - Sinon : comparer les scores
-    
-    4. GAINS :
-       - Blackjack naturel (21 avec 2 cartes) : x2.5
-       - Victoire normale : x2
-       - Égalité : remboursement
-       - Défaite : perte de la mise
-    """
-    
-    def __init__(self):
-        self.deck = []
-        self.player_hand = []
-        self.dealer_hand = []
-        self.create_deck()
-    
-    def create_deck(self):
-        """Crée et mélange un deck de 52 cartes"""
-        suits = ["♠️", "♥️", "♦️", "♣️"]
-        values = ["2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A"]
-        self.deck = [f"{value}{suit}" for suit in suits for value in values]
-        random.shuffle(self.deck)
-        
-        # Avantage maison subtil : Placer quelques cartes fortes au fond du deck
-        # pour réduire légèrement les chances du joueur d'en obtenir
-        high_cards = [c for c in self.deck if c[0] in ['J', 'Q', 'K', 'A', '1']]
-        if len(high_cards) > 8 and random.random() < 0.3:
-            # 30% du temps, déplacer 2-3 cartes fortes vers le fond
-            for _ in range(random.randint(2, 3)):
-                if high_cards:
-                    card = random.choice(high_cards)
-                    if card in self.deck:
-                        self.deck.remove(card)
-                        self.deck.insert(random.randint(0, 10), card)
-                        high_cards.remove(card)
-    
-    def draw_card(self):
-        """Tire une carte du deck"""
-        return self.deck.pop()
-    
-    def card_value(self, card):
-        """Retourne la valeur numérique d'une carte"""
-        # Gérer le cas du 10 qui fait 3 caractères (ex: "10♠️")
-        if card.startswith("10"):
-            return 10
-        
-        # Pour les autres cartes, prendre le premier caractère
-        value = card[0]
-        
-        if value in ["J", "Q", "K"]:
-            return 10
-        elif value == "A":
-            return 11
-        else:
-            return int(value)
-    
-    def calculate_hand(self, hand):
-        """Calcule la valeur totale d'une main en gérant les As"""
-        total = sum(self.card_value(card) for card in hand)
-        aces = sum(1 for card in hand if card[0] == "A")
-        
-        # Convertir les As de 11 en 1 si nécessaire
-        while total > 21 and aces > 0:
-            total -= 10
-            aces -= 1
-        
-        return total
-    
-    def is_blackjack(self, hand):
-        """Vérifie si c'est un blackjack naturel (21 avec 2 cartes)"""
-        return len(hand) == 2 and self.calculate_hand(hand) == 21
-    
-    def dealer_play(self):
-        """Le croupier tire jusqu'à avoir au moins 17"""
-        while self.calculate_hand(self.dealer_hand) < 17:
-            self.dealer_hand.append(self.draw_card())
-        
-        # Avantage maison : Si le croupier est à 17-18 et le joueur semble fort,
-        # chance plus élevée qu'il tire une bonne carte supplémentaire
-        dealer_total = self.calculate_hand(self.dealer_hand)
-        if dealer_total in [17, 18] and random.random() < 0.20:
-            # 20% de chance de tirer une carte supplémentaire qui pourrait l'améliorer
-            next_card_value = self.card_value(self.deck[-1]) if self.deck else 5
-            if next_card_value <= 3 and dealer_total + next_card_value <= 21:
-                self.dealer_hand.append(self.draw_card())
-
-
-@bot.tree.command(name="blackjack", description="Joue au Blackjack contre le croupier")
-@app_commands.describe(mise="Montant à miser")
-async def blackjack(interaction: discord.Interaction, mise: int):
-    if mise < 100:
-        return await interaction.response.send_message("❌ La mise minimum est 100 coins.")
-    money = get_balance(interaction.user.id)
-    if mise > money:
-        return await interaction.response.send_message("❌ Tu n'as pas assez de coins.")
-    
-    # Initialiser la partie
-    game = BlackjackGame()
-    game.player_hand = [game.draw_card(), game.draw_card()]
-    game.dealer_hand = [game.draw_card(), game.draw_card()]
-    
-    player_total = game.calculate_hand(game.player_hand)
-    dealer_visible = game.card_value(game.dealer_hand[0])
-    
-    # Vérifier blackjack naturel
-    if game.is_blackjack(game.player_hand):
-        gain = int(mise * 2.5)
-        set_balance(interaction.user.id, money + gain)
-        return await interaction.response.send_message(
-            f"🃏 **BLACKJACK !**\n\n"
-            f"Tes cartes : {' '.join(game.player_hand)} = **21**\n"
-            f"Croupier : {' '.join(game.dealer_hand)} = {game.calculate_hand(game.dealer_hand)}\n\n"
-            f"🎉 Tu gagnes **{gain:,} coins** (x2.5) !\n"
-            f"💰 Nouveau solde : **{money + gain:,} coins**"
-        )
-    
-    # Créer les boutons
-    view = discord.ui.View(timeout=120)
-    
-    async def update_game_message(button_interaction: discord.Interaction):
-        """Met à jour l'affichage de la partie"""
-        player_total = game.calculate_hand(game.player_hand)
-        content = (
-            f"🃏 **BLACKJACK** - Mise : {mise:,} coins\n"
-            f"📊 *Avantage joueur optimal : ~49%* | Gains : x2 ou x2.5\n\n"
-            f"**Tes cartes :** {' '.join(game.player_hand)} = **{player_total}**\n"
-            f"**Croupier :** {game.dealer_hand[0]} 🎴 = {dealer_visible}+?\n\n"
-        )
-        return content
-    
-    async def hit_callback(button_interaction: discord.Interaction):
-        if button_interaction.user.id != interaction.user.id:
-            return await button_interaction.response.send_message("❌ Ce n'est pas ton jeu !", ephemeral=True)
-        
-        # Tirer une carte
-        game.player_hand.append(game.draw_card())
-        player_total = game.calculate_hand(game.player_hand)
-        
-        if player_total > 21:
-            # BUST - Perdu
-            for item in view.children:
-                item.disabled = True
-            
-            money_now = get_balance(interaction.user.id)
-            set_balance(interaction.user.id, money_now - mise)
-            
-            await button_interaction.response.edit_message(
-                content=(
-                    f"🃏 **BLACKJACK** - Mise : {mise:,} coins\n\n"
-                    f"**Tes cartes :** {' '.join(game.player_hand)} = **{player_total}** 💥\n"
-                    f"**Croupier :** {' '.join(game.dealer_hand)} = {game.calculate_hand(game.dealer_hand)}\n\n"
-                    f"💀 **BUST !** Tu as dépassé 21 !\n"
-                    f"Tu perds **{mise:,} coins**.\n"
-                    f"💰 Nouveau solde : **{money_now - mise:,} coins**"
-                ),
-                view=view
-            )
-        else:
-            # Continuer à jouer
-            content = await update_game_message(button_interaction)
-            await button_interaction.response.edit_message(content=content, view=view)
-    
-    async def stand_callback(button_interaction: discord.Interaction):
-        if button_interaction.user.id != interaction.user.id:
-            return await button_interaction.response.send_message("❌ Ce n'est pas ton jeu !", ephemeral=True)
-        
-        # Désactiver les boutons
-        for item in view.children:
-            item.disabled = True
-        
-        # Le croupier joue
-        game.dealer_play()
-        
-        player_total = game.calculate_hand(game.player_hand)
-        dealer_total = game.calculate_hand(game.dealer_hand)
-        
-        money_now = get_balance(interaction.user.id)
-        
-        # Déterminer le gagnant
-        if dealer_total > 21:
-            # Croupier BUST
-            gain = mise * 2
-            set_balance(interaction.user.id, money_now + gain)
-            result = f"🎉 **LE CROUPIER BUST !**\nTu gagnes **{gain:,} coins** !\n💰 Nouveau solde : **{money_now + gain:,} coins**"
-        elif player_total > dealer_total:
-            # Joueur gagne
-            gain = mise * 2
-            set_balance(interaction.user.id, money_now + gain)
-            result = f"🎉 **VICTOIRE !**\nTu gagnes **{gain:,} coins** !\n💰 Nouveau solde : **{money_now + gain:,} coins**"
-        elif player_total == dealer_total:
-            # Égalité
-            result = f"🤝 **ÉGALITÉ !**\nTu récupères ta mise de {mise:,} coins.\n💰 Solde : **{money_now:,} coins**"
-        else:
-            # Croupier gagne
-            set_balance(interaction.user.id, money_now - mise)
-            result = f"💔 **DÉFAITE !**\nTu perds **{mise:,} coins**.\n💰 Nouveau solde : **{money_now - mise:,} coins**"
-        
-        await button_interaction.response.edit_message(
-            content=(
-                f"🃏 **BLACKJACK** - Mise : {mise:,} coins\n\n"
-                f"**Tes cartes :** {' '.join(game.player_hand)} = **{player_total}**\n"
-                f"**Croupier :** {' '.join(game.dealer_hand)} = **{dealer_total}**\n\n"
-                f"{result}"
-            ),
-            view=view
-        )
-    
-    # Créer les boutons HIT et STAND
-    hit_button = discord.ui.Button(label="🎴 HIT (Tirer)", style=discord.ButtonStyle.success)
-    hit_button.callback = hit_callback
-    
-    stand_button = discord.ui.Button(label="✋ STAND (Rester)", style=discord.ButtonStyle.danger)
-    stand_button.callback = stand_callback
-    
-    view.add_item(hit_button)
-    view.add_item(stand_button)
-    
-    # Envoyer le message initial
-    content = await update_game_message(interaction)
-    await interaction.response.send_message(content=content, view=view)
-
-
-
-# -------------------------------
-# COMMANDES ADMIN (INVISIBLES POUR NON-ADMINS)
-# -------------------------------
-
-def admin_only():
-    def predicate(interaction: discord.Interaction):
-        # Support pour un seul admin ou une liste d'admins
-        if isinstance(ADMIN_ID, (list, tuple, set)):
-            return interaction.user.id in ADMIN_ID
-        return interaction.user.id == ADMIN_ID
-    return app_commands.check(predicate)
-
-
-@bot.tree.command(name="admin_list", description="[ADMIN] Liste tous les joueurs")
-@app_commands.guild_only()
-@app_commands.default_permissions(administrator=True)
-@admin_only()
-async def admin_list(interaction: discord.Interaction):
-    all_players = get_all_players()
-    
-    if not all_players:
-        return await interaction.response.send_message("Aucun joueur enregistré.")
-    
-    msg = "📜 **Liste des joueurs :**\n\n"
-    for uid, money in all_players.items():
-        try:
-            user = await bot.fetch_user(int(uid))
-            msg += f"**{user.name}** ({uid}) → {money:,} coins\n"
-        except:
-            msg += f"User {uid} → {money:,} coins\n"
-    await interaction.response.send_message(msg)
-
-
-@bot.tree.command(name="admin_add", description="[ADMIN] Ajouter de l'argent")
-@app_commands.describe(member="Membre à créditer", amount="Montant")
-@app_commands.guild_only()
-@app_commands.default_permissions(administrator=True)
-@admin_only()
-async def admin_add(interaction: discord.Interaction, member: discord.Member, amount: int):
-    money = get_balance(member.id)
-    set_balance(member.id, money + amount)
-    await interaction.response.send_message(f"✔️ Ajouté {amount} coins à {member.name}.")
-
-
-@bot.tree.command(name="admin_remove", description="[ADMIN] Retirer de l'argent")
-@app_commands.describe(member="Membre à débiter", amount="Montant")
-@app_commands.guild_only()
-@app_commands.default_permissions(administrator=True)
-@admin_only()
-async def admin_remove(interaction: discord.Interaction, member: discord.Member, amount: int):
-    money = get_balance(member.id)
-    set_balance(member.id, max(0, money - amount))
-    await interaction.response.send_message(f"✔️ Retiré {amount} coins à {member.name}.")
-
-
-@bot.tree.command(name="admin_reset", description="[ADMIN] Reset l'argent d'un joueur")
-@app_commands.describe(member="Membre à reset")
-@app_commands.guild_only()
-@app_commands.default_permissions(administrator=True)
-@admin_only()
-async def admin_reset(interaction: discord.Interaction, member: discord.Member):
-    set_balance(member.id, 0)
-    await interaction.response.send_message(f"♻️ Argent de {member.name} remis à 0.")
-
-
-@bot.tree.command(name="admin_createcode", description="[ADMIN] Créer un code promo")
-@app_commands.describe(
-    code="Le code (ex: BIENVENUE)",
-    amount="Montant de coins",
-    infinite="Utilisable à l'infini ? (True/False)"
-)
-@app_commands.guild_only()
-@app_commands.default_permissions(administrator=True)
-@admin_only()
-async def admin_createcode(interaction: discord.Interaction, code: str, amount: int, infinite: bool):
-    code = code.upper()
-    
-    if get_code(code):
-        return await interaction.response.send_message(f"❌ Le code **{code}** existe déjà.")
-    
-    create_code(code, amount, infinite)
-    
-    usage_type = "♾️ infini" if infinite else "🔒 unique"
-    await interaction.response.send_message(
-        f"✅ Code **{code}** créé !\n"
-        f"💰 Montant : {amount:,} coins\n"
-        f"📋 Type : {usage_type}"
-    )
-
-
-@bot.tree.command(name="admin_deletecode", description="[ADMIN] Supprimer un code promo")
-@app_commands.describe(code="Le code à supprimer")
-@app_commands.guild_only()
-@app_commands.default_permissions(administrator=True)
-@admin_only()
-async def admin_deletecode(interaction: discord.Interaction, code: str):
-    code = code.upper()
-    
-    if not get_code(code):
-        return await interaction.response.send_message(f"❌ Le code **{code}** n'existe pas.")
-    
-    delete_code(code)
-    await interaction.response.send_message(f"🗑️ Code **{code}** supprimé.")
-
-
-@bot.tree.command(name="admin_listcodes", description="[ADMIN] Liste tous les codes")
-@app_commands.guild_only()
-@app_commands.default_permissions(administrator=True)
-@admin_only()
-async def admin_listcodes(interaction: discord.Interaction):
-    all_codes = get_all_codes()
-    
-    if not all_codes:
-        return await interaction.response.send_message("📭 Aucun code créé.")
-    
-    msg = "📜 **Liste des codes :**\n\n"
-    for code_data in all_codes:
-        status = "✅ Actif" if code_data["active"] else "❌ Désactivé"
-        num_uses = len(code_data['used_by'])
-        
-        if code_data["infinite"]:
-            usage_type = f"♾️ Infini ({num_uses} joueurs l'ont utilisé)"
-        else:
-            usage_type = f"🔒 Usage unique ({num_uses} utilisations)"
-        
-        msg += f"**{code_data['code']}**\n"
-        msg += f"  ├ Montant : {code_data['amount']:,} coins\n"
-        msg += f"  ├ Type : {usage_type}\n"
-        msg += f"  └ Statut : {status}\n\n"
-    
-    await interaction.response.send_message(msg)
-
-
-@bot.tree.command(name="admin_togglecode", description="[ADMIN] Activer/désactiver un code")
-@app_commands.describe(code="Le code à activer/désactiver")
-@app_commands.guild_only()
-@app_commands.default_permissions(administrator=True)
-@admin_only()
-async def admin_togglecode(interaction: discord.Interaction, code: str):
-    code = code.upper()
-    
-    code_data = get_code(code)
-    if not code_data:
-        return await interaction.response.send_message(f"❌ Le code **{code}** n'existe pas.")
-    
-    new_status = not code_data["active"]
-    update_code(code, {"active": new_status})
-    
-    status = "activé ✅" if new_status else "désactivé ❌"
-    await interaction.response.send_message(f"Le code **{code}** a été {status}.")
-
-
-
-@bot.tree.command(name="admin_generate", description="[ADMIN] Générer plusieurs codes uniques automatiquement")
-@app_commands.describe(
-    amount="Montant de coins par code",
-    quantity="Nombre de codes à générer",
-    length="Longueur des codes (par défaut: 8)"
-)
-@admin_only()
-async def admin_generate(interaction: discord.Interaction, amount: int, quantity: int, length: int = 8):
-    if quantity > 50:
-        return await interaction.response.send_message("❌ Maximum 50 codes à la fois.")
-    
-    if length < 4 or length > 20:
-        return await interaction.response.send_message("❌ La longueur doit être entre 4 et 20 caractères.")
-    
-    if amount < 1:
-        return await interaction.response.send_message("❌ Le montant doit être positif.")
-    
-    # Générer les codes
-    generated_codes = []
-    
-    for i in range(quantity):
-        # Générer un code aléatoire unique
-        while True:
-            code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=length))
-            if code not in codes:  # Vérifier qu'il n'existe pas déjà
-                break
-        
-        # Créer le code
-        codes[code] = {
-            "amount": amount,
-            "infinite": False,  # Toujours usage unique
-            "active": True,
-            "used_by": []
-        }
-        generated_codes.append(code)
-    
-    save_codes()
-    
-    # Créer le message de réponse
-    embed = discord.Embed(
-        title="🎟️ **CODES GÉNÉRÉS**",
-        description=f"**{quantity} codes** de **{amount} coins** créés avec succès !",
-        color=discord.Color.green()
-    )
-    
-    # Diviser les codes en plusieurs champs si nécessaire (limite Discord)
-    codes_per_field = 10
-    for i in range(0, len(generated_codes), codes_per_field):
-        batch = generated_codes[i:i+codes_per_field]
-        field_name = f"📋 Codes {i+1}-{min(i+codes_per_field, len(generated_codes))}"
-        field_value = "\n".join([f"`{code}`" for code in batch])
-        embed.add_field(name=field_name, value=field_value, inline=False)
-    
-    embed.set_footer(text="⚠️ Chaque code est à usage unique (1 joueur)")
-    
-    await interaction.response.send_message(embed=embed)
-    
-    # Envoyer aussi un fichier texte si beaucoup de codes
-    if quantity > 20:
-        codes_text = "\n".join(generated_codes)
-        with open("generated_codes.txt", "w") as f:
-            f.write(f"Codes générés - {amount} coins chacun\n")
-            f.write("="*40 + "\n\n")
-            f.write(codes_text)
-        
-        with open("generated_codes.txt", "rb") as f:
-            file = discord.File(f, filename=f"codes_{amount}coins_{quantity}x.txt")
-            await interaction.followup.send(
-                "📄 **Fichier texte avec tous les codes :**",
-                file=file
-            )
-        
-        # Supprimer le fichier temporaire
-        os.remove("generated_codes.txt")
-
-
-# -------------------------------
-# ANTI-SLEEP TASK (RENDER FREE)
-# -------------------------------
-
-@tasks.loop(seconds=60)
-async def keep_bot_alive_task():
-    """Garde le bot actif sur Render"""
-    pass
-
-
-# -------------------------------
-# LANCEMENT DU BOT
-# -------------------------------
-
-if __name__ == "__main__":
-    # Lancer le serveur Flask en arrière-plan
-    keep_alive()
-    
-    # Récupérer le token depuis les variables d'environnement
-    TOKEN = os.getenv('DISCORD_TOKEN')
-    
-    if not TOKEN:
-        print("❌ ERREUR : Variable d'environnement DISCORD_TOKEN introuvable !")
-        print("💡 Configure-la sur Render dans Environment Variables")
-    else:
-        print("🚀 Démarrage du bot...")
-        bot.run(TOKEN)
-
+            multiplicate
